@@ -8,7 +8,7 @@ x-minio-config: &minio-config
   PEERDB_CLICKHOUSE_AWS_S3_BUCKET_NAME: peerdbbucket
 
 x-catalog-config: &catalog-config
-  PEERDB_CATALOG_HOST: 172.17.0.1 # this is linux alternative to host.docker.internal
+  PEERDB_CATALOG_HOST: peerdbcatalog
   PEERDB_CATALOG_PORT: 9901
   PEERDB_CATALOG_USER: postgres
   PEERDB_CATALOG_PASSWORD: postgres
@@ -30,8 +30,8 @@ x-flow-worker-env: &flow-worker-env
   AWS_ENDPOINT: ${AWS_ENDPOINT:-}
 
 services:
-  peerdb-catalog:
-    container_name: peerdb-catalog
+  peerdbcatalog:
+    container_name: peerdbcatalog
     image: postgres:17-alpine@sha256:7e5df973a74872482e320dcbdeb055e178d6f42de0558b083892c50cda833c96
     command: -c config_file=/etc/postgresql.conf
     restart: unless-stopped
@@ -98,7 +98,7 @@ services:
     ports:
       - 9900:9900
     depends_on:
-      peerdb-catalog:
+      peerdbcatalog:
         condition: service_healthy
 
   peerdb-ui:
@@ -109,7 +109,7 @@ services:
       - 3039:3000
     environment:
       <<: *catalog-config
-      DATABASE_URL: postgres://postgres:postgres@172.17.0.1:9901/postgres
+      DATABASE_URL: postgres://postgres:postgres@peerdbcatalog:9901/postgres
       PEERDB_FLOW_SERVER_HTTP: http://flow_api:8113
       NEXTAUTH_SECRET: __changeme__
       NEXTAUTH_URL: http://localhost:3039
