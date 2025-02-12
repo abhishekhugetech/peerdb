@@ -18,7 +18,7 @@ x-flow-worker-env: &flow-worker-env
   TEMPORAL_HOST_PORT: 172.17.0.1:7233 # this is linux alternative to host.docker.internal
   TEMPORAL_CLIENT_CERT:
   TEMPORAL_CLIENT_KEY:
-  PEERDB_TEMPORAL_NAMESPACE: peerdb
+  PEERDB_TEMPORAL_NAMESPACE: default
   # For GCS, these will be your HMAC keys instead
   # For more information:
   # https://cloud.google.com/storage/docs/authentication/managing-hmackeys
