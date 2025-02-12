@@ -8,8 +8,8 @@ x-minio-config: &minio-config
   PEERDB_CLICKHOUSE_AWS_S3_BUCKET_NAME: peerdbbucket
 
 x-catalog-config: &catalog-config
-  PEERDB_CATALOG_HOST: peerdb-catalog
-  PEERDB_CATALOG_PORT: 5432
+  PEERDB_CATALOG_HOST: 172.17.0.1 # this is linux alternative to host.docker.internal
+  PEERDB_CATALOG_PORT: 9901
   PEERDB_CATALOG_USER: postgres
   PEERDB_CATALOG_PASSWORD: postgres
   PEERDB_CATALOG_DATABASE: postgres
@@ -109,7 +109,7 @@ services:
       - 3039:3000
     environment:
       <<: *catalog-config
-      DATABASE_URL: postgres://postgres:postgres@peerdb-catalog:5432/postgres
+      DATABASE_URL: postgres://postgres:postgres@172.17.0.1:9901/postgres
       PEERDB_FLOW_SERVER_HTTP: http://flow_api:8113
       NEXTAUTH_SECRET: __changeme__
       NEXTAUTH_URL: http://localhost:3039
