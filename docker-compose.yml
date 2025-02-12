@@ -15,10 +15,10 @@ x-catalog-config: &catalog-config
   PEERDB_CATALOG_DATABASE: postgres
 
 x-flow-worker-env: &flow-worker-env
-  TEMPORAL_HOST_PORT: temporal:7233
+  TEMPORAL_HOST_PORT: 172.17.0.1:7233 # this is linux alternative to host.docker.internal
   TEMPORAL_CLIENT_CERT:
   TEMPORAL_CLIENT_KEY:
-  PEERDB_TEMPORAL_NAMESPACE: default
+  PEERDB_TEMPORAL_NAMESPACE: peerdb
   # For GCS, these will be your HMAC keys instead
   # For more information:
   # https://cloud.google.com/storage/docs/authentication/managing-hmackeys
@@ -32,7 +32,7 @@ x-flow-worker-env: &flow-worker-env
 services:
   catalog:
     container_name: catalog
-    image: postgres:17-alpine@sha256:7e5df973a74872482e320dcbdeb055e178d6f42de0558b083892c50cda833c96
+    image: postgres:15
     command: -c config_file=/etc/postgresql.conf
     restart: unless-stopped
     ports:
@@ -55,61 +55,6 @@ services:
       retries: 5
       start_period: 60s
 
-  temporal:
-    container_name: temporal
-    restart: unless-stopped
-    depends_on:
-      catalog:
-        condition: service_healthy
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PWD=postgres
-      - POSTGRES_SEEDS=catalog
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-    image: temporalio/auto-setup:1.26@sha256:e9245820522233ec6a59ad69c6512ae4450705ee02bf6894fc61ba13b238c1c0
-    ports:
-      - 7233:7233
-    volumes:
-      - ./volumes/temporal-dynamicconfig:/etc/temporal/config/dynamicconfig
-    labels:
-      kompose.volume.type: configMap
-
-  temporal-admin-tools:
-    container_name: temporal-admin-tools
-    restart: unless-stopped
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CLI_ADDRESS=temporal:7233
-      - TEMPORAL_CLI_SHOW_STACKS=1
-    image: temporalio/admin-tools:1.25.2-tctl-1.18.1-cli-1.1.1@sha256:da0c7a7982b571857173ab8f058e7f139b3054800abb4dcb100445d29a563ee8
-    stdin_open: true
-    tty: true
-    entrypoint: /etc/temporal/entrypoint.sh
-    healthcheck:
-      test: ["CMD", "tctl", "workflow", "list"]
-      interval: 1s
-      timeout: 5s
-      retries: 30
-    volumes:
-      - ./scripts/mirror-name-search.sh:/etc/temporal/entrypoint.sh
-
-  temporal-ui:
-    container_name: temporal-ui
-    restart: unless-stopped
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
-      - TEMPORAL_CSRF_COOKIE_INSECURE=true
-    image: temporalio/ui:2.34.0@sha256:cb17ea423d76a8a19a269d0bcd81fc12eee1f6365acd2a56b590dafb35696a95
-    ports:
-      - 8085:8080
-
   flow-api:
     container_name: flow_api
     image: ghcr.io/peerdb-io/flow-api:stable-v0.24.0
@@ -122,9 +67,6 @@ services:
       PEERDB_ALLOWED_TARGETS:
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      temporal-admin-tools:
-        condition: service_healthy
 
   flow-snapshot-worker:
     container_name: flow-snapshot-worker
@@ -132,9 +74,6 @@ services:
     restart: unless-stopped
     environment:
       <<: [*catalog-config, *flow-worker-env, *minio-config]
-    depends_on:
-      temporal-admin-tools:
-        condition: service_healthy
 
   flow-worker:
     container_name: flow-worker
@@ -144,9 +83,6 @@ services:
       <<: [*catalog-config, *flow-worker-env, *minio-config]
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      temporal-admin-tools:
-        condition: service_healthy
 
   peerdb:
     container_name: peerdb-server
@@ -183,30 +119,9 @@ services:
     depends_on:
       - flow-api
 
-  minio:
-    image: minio/minio:RELEASE.2024-11-07T00-52-20Z@sha256:ac591851803a79aee64bc37f66d77c56b0a4b6e12d9e5356380f4105510f2332
-    restart: unless-stopped
-    volumes:
-      - minio-data:/data
-    ports:
-      - "9001:9000"
-      - "9002:36987"
-    environment:
-      <<: *minio-config
-    entrypoint: >
-      /bin/sh -c "
-      export MINIO_ROOT_USER=$$PEERDB_CLICKHOUSE_AWS_CREDENTIALS_AWS_ACCESS_KEY_ID;
-      export MINIO_ROOT_PASSWORD=$$PEERDB_CLICKHOUSE_AWS_CREDENTIALS_AWS_SECRET_ACCESS_KEY;
-      minio server /data --console-address=":36987" &
-      sleep 2;
-      /usr/bin/mc alias set myminiopeerdb http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD;
-      /usr/bin/mc mb myminiopeerdb/$$PEERDB_CLICKHOUSE_AWS_S3_BUCKET_NAME;
-      wait
-      "
 
 volumes:
   pgdata:
-  minio-data:
 
 networks:
   default:
